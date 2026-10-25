@@ -1,0 +1,27 @@
+# Don't copy these into the Docker build context.
+node_modules
+dist
+coverage
+data
+*.db
+*.db-journal
+
+# Git and CI
+.git
+.github
+.gitignore
+
+# Env and logs
+.env
+.env.local
+*.log
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Tests aren't needed in the production image
+**/*.test.ts
+vitest.config.ts

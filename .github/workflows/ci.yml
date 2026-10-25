@@ -1,0 +1,81 @@
+# Continuous Integration pipeline.
+#
+# This runs automatically on GitHub's servers whenever code is pushed or a
+# pull request is opened. It is the automated gatekeeper for the project:
+# if any step fails, the whole run goes red and you'll see it on GitHub.
+
+name: CI
+
+# When should this pipeline run?
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: lint and test the application code.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download your repository's code onto the runner.
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # Install Node. We cache npm downloads so repeat runs are faster.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # "npm ci" is the CI-friendly install: fast, reproducible, respects
+      # the lockfile exactly. Fails if package.json and the lockfile disagree.
+      - name: Install dependencies
+        run: npm ci
+
+      # Static analysis — catches style and likely-bug issues.
+      - name: Run linter
+        run: npm run lint
+
+      # Compile TypeScript. If types are wrong, this fails the build.
+      - name: Build (type-check + compile)
+        run: npm run build
+
+      # Run the full test suite. If any of the 16 tests fail, CI goes red.
+      - name: Run tests
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Job 2: build the Docker image.
+  # Only runs if the test job above succeeds (see "needs").
+  # This proves the container builds cleanly on a fresh machine, not just
+  # on your laptop.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # Buildx is Docker's modern builder with better caching support.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build the image. We don't push it anywhere yet (that's Phase 5),
+      # we just confirm the multi-stage build succeeds.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: url-shortener:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
